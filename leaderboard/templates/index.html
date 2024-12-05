@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advent of Code Leaderboard</title>
+    <script>
+        async function fetchLeaderboard() {
+            const year = 2024; // Hardcoded year
+            const leaderboardId = "121215"; // Hardcoded leaderboard ID
+
+            const response = await fetch("/leaderboard", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ year, leaderboard_id: leaderboardId }),
+            });
+
+            const data = await response.json();
+            const table = document.createElement("table");
+            const thead = document.createElement("thead");
+            const tbody = document.createElement("tbody");
+
+            // Create table headers
+            const headers = ["Name", "Score", "Stars", "Completion Day Levels"];
+            const headerRow = document.createElement("tr");
+            headers.forEach(header => {
+                const th = document.createElement("th");
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            // Calculate fastest times for each day
+            const fastestTimes = {};
+            Object.values(data.members).forEach(member => {
+                Object.entries(member.completion_day_level).forEach(([day, levels]) => {
+                    ["1", "2"].forEach(part => {
+                        if (levels[part]) {
+                            const time = levels[part].get_star_ts;
+                            if (!fastestTimes[day]) fastestTimes[day] = {};
+                            if (!fastestTimes[day][part] || time < fastestTimes[day][part]) {
+                                fastestTimes[day][part] = time;
+                            }
+                        }
+                    });
+                });
+            });
+
+            // Sort members by score
+            const sortedMembers = Object.entries(data.members).sort((a, b) => b[1].local_score - a[1].local_score);
+
+            // Create table body
+            sortedMembers.forEach(([memberId, memberData]) => {
+                const row = document.createElement("tr");
+
+                // Name column
+                const nameCell = document.createElement("td");
+                nameCell.textContent = memberData.name || "Anonymous";
+                row.appendChild(nameCell);
+
+                // Score column
+                const scoreCell = document.createElement("td");
+                scoreCell.textContent = memberData.local_score;
+                row.appendChild(scoreCell);
+
+                // Stars column
+                const starsCell = document.createElement("td");
+                starsCell.textContent = memberData.stars;
+                row.appendChild(starsCell);
+
+                // Completion Day Levels column
+                const levelsCell = document.createElement("td");
+                const completionDetails = document.createElement("ul");
+                const dayFilter = document.getElementById("day-filter").value;
+                Object.entries(memberData.completion_day_level).forEach(([day, levels]) => {
+                    if (dayFilter && day !== dayFilter) return; // Skip if day does not match filter
+                    const dayItem = document.createElement("li");
+                    dayItem.textContent = `Day ${day}:`;
+
+                    const starsDetails = [];
+                    if (levels["1"]) {
+                        const isFastestPart1 = levels["1"].get_star_ts === fastestTimes[day]["1"];
+                        starsDetails.push(
+                            `&emsp;Part 1: ${new Date(levels["1"].get_star_ts * 1000).toLocaleString()} ${isFastestPart1 ? "⭐" : ""}`
+                        );
+                    }
+                    if (levels["2"]) {
+                        const isFastestPart2 = levels["2"].get_star_ts === fastestTimes[day]["2"];
+                        starsDetails.push(
+                            `&emsp;&emsp;&emsp;&emsp;Part 2: ${new Date(levels["2"].get_star_ts * 1000).toLocaleString()} ${isFastestPart2 ? "⭐" : ""}`
+                            );
+                    }
+                    dayItem.innerHTML += ` ${starsDetails.join("<br />")}`;
+                    completionDetails.appendChild(dayItem);
+                });
+
+                levelsCell.appendChild(completionDetails);
+                row.appendChild(levelsCell);
+
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            document.getElementById("output").innerHTML = ""; // Clear previous results
+            document.getElementById("output").appendChild(table);
+        }
+
+        async function populateDayFilter() {
+            const response = await fetch("/leaderboard", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ year: 2024, leaderboard_id: "121215" }),
+            });
+
+            const data = await response.json();
+            const dayFilter = document.getElementById("day-filter");
+            const days = Object.keys(data.members[Object.keys(data.members)[0]].completion_day_level);
+            days.forEach(day => {
+                const option = document.createElement("option");
+                option.value = day;
+                option.textContent = `Day ${day}`;
+                dayFilter.appendChild(option);
+            });
+        }
+
+        populateDayFilter();
+    </script>
+</head>
+<body>
+    <h1>Advent of Code Leaderboard</h1>
+    <button onclick="fetchLeaderboard()">Fetch Leaderboard</button>
+    <select id="day-filter">
+        <option value="">All Days</option>
+    </select>
+    <div id="output"></div>
+</body>
+</html>
